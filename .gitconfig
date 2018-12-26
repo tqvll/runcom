@@ -1,0 +1,29 @@
+[filter "lfs"]
+    clean = git-lfs clean -- %f
+    smudge = git-lfs smudge -- %f
+    process = git-lfs filter-process
+    required = true
+[alias]
+    lg = log --graph --pretty=format:'%Cred%h%Creset -%C(yellow)%d%Creset %s %Cgreen(%cr) %C(bold blue)<%an>%Creset' --abbrev-commit --date=relative
+    lga = log --graph --all --pretty=format:'%Cred%h%Creset -%C(yellow)%d%Creset %s %Cgreen(%cr) %C(bold blue)<%an>%Creset' --abbrev-commit --date=relative
+    d = diff
+    au = add -u
+    ac = add .
+    st = status
+    stt = status -uno
+    co = checkout
+    f = fetch
+    m = merge
+    md = merge origin/develop
+    pl = pull
+    cm = commit -m
+    p = push
+    poh = push origin HEAD
+    unstage = reset HEAD
+    cp = cherry-pick
+    b = branch
+    ba = branch -a
+[core]
+    quotepath = false
+    editor = emacs -nw
+    excludesfile = ~/.gitignore_global
