@@ -1,303 +1,374 @@
-(set-terminal-coding-system 'utf-8)
-(set-keyboard-coding-system 'utf-8)
-(prefer-coding-system 'utf-8)
+;;; init.el --- Personal Emacs configuration -*- lexical-binding: t; -*-
 
-(when (eq system-type 'darwin)
-  (setq mac-option-modifier 'alt)
-  (setq mac-command-modifier 'meta)
-  (global-set-key [kp-delete] 'delete-char))
+;; managed in ~/git/runcom （~/.emacs.d/init.el からシンボリックリンク）
+;;
+;; Emacs 28 以上で動く。29 以上なら vertico / consult / corfu によるモダンな
+;; 補完スタックが自動的に有効になり、28 では組み込みの fido-vertical +
+;; company にフォールバックする。
 
-(setq backup-directory-alist '(("." . "~/.saves")))
-(setq backup-inhibited t)
-(setq auto-save-default nil)
+;;; Code:
 
-(global-linum-mode t)
-(setq linum-format "%d ")
+;;;; ------------------------------------------------------------ 起動時の調整
+;; 起動中は GC を止めておき、終わったら現実的な値に戻す
+(setq gc-cons-threshold most-positive-fixnum
+      read-process-output-max (* 1024 1024))
+(add-hook 'emacs-startup-hook
+          (lambda ()
+            (setq gc-cons-threshold (* 64 1024 1024))
+            (message "Emacs ready in %.2fs (%d GCs)"
+                     (float-time (time-subtract after-init-time before-init-time))
+                     gcs-done)))
 
-(setq-default tab-width 4)
-(setq-default indent-tabs-mode nil)
-(show-paren-mode t)
-(electric-pair-mode 1)
-
-(delete-selection-mode)
-
-(global-set-key (kbd "M-n") (lambda () (interactive) (scroll-up 1)))
-(global-set-key (kbd "M-p") (lambda () (interactive) (scroll-down 1)))
-
-;; allow to read symlinks
-(setq vc-follow-symlinks t)
-;; autoupdate buffer when the symlinked file updated on VCS
-(setq auto-revert-check-vc-info t)
-
+;;;; ------------------------------------------------------------ パッケージ
 (require 'package)
-(add-to-list 'package-archives '("melpa" . "http://melpa.milkbox.net/packages/") t)
-(add-to-list 'package-archives '("marmalade" . "http://marmalade-repo.org/packages/") t)
+(setq package-archives '(("gnu"    . "https://elpa.gnu.org/packages/")
+                         ("nongnu" . "https://elpa.nongnu.org/nongnu/")
+                         ("melpa"  . "https://melpa.org/packages/")))
 (package-initialize)
+(unless package-archive-contents
+  (package-refresh-contents))
 
-(unless (package-installed-p 'use-package)
-  (package-refresh-contents)
-  (package-install 'use-package))
+;; アーカイブのキャッシュが古いとインストールが "Not found" で落ちるので、
+;; 失敗したら一度だけ更新して再試行する
+(define-advice package-install (:around (fn &rest args) my/retry-after-refresh)
+  (condition-case nil
+      (apply fn args)
+    (error (ignore-errors (package-refresh-contents))
+           (apply fn args))))
 
+(defun my/ensure-package (pkg)
+  "PKG が Emacs に同梱されていない場合だけインストールする。"
+  (unless (or (locate-library (symbol-name pkg)) (package-installed-p pkg))
+    (package-install pkg)))
+
+(my/ensure-package 'use-package)
 (require 'use-package)
 (setq use-package-always-ensure t)
 
-(dolist (package '(
-                   whitespace
-                   avy
-                   helm-swoop
-                   ace-isearch
-                   auto-compile
-                   auto-complete
-                   avy-flycheck
-                   flycheck
-                   highlight-indentation
-                   base16-theme
-                   fuzzy
-                   slime
-                   ac-slime
-                   nimbus-theme
-                   paredit
-                   eldoc
-                   markdown-mode
-                   plantuml-mode
-                   python-mode
-                   go-mode
-                   yaml-mode
-                   terraform-mode
-                   go-autocomplete
-                   csv-mode
-                   neotree
-                   rainbow-delimiters
-                   cl-lib
-                   color
-                   ))
-  (unless (package-installed-p package)
-    (package-install package))
-  (require package))
+;;;; ------------------------------------------------------------ 基本設定
+(set-language-environment "UTF-8")
+(prefer-coding-system 'utf-8)
 
-;; paredit
-(autoload 'enable-paredit-mode "paredit" "Turn on pseudo-structural editing of Lisp code." t)
-(add-hook 'emacs-lisp-mode-hook       #'enable-paredit-mode)
-(add-hook 'eval-expression-minibuffer-setup-hook #'enable-paredit-mode)
-(add-hook 'ielm-mode-hook             #'enable-paredit-mode)
-(add-hook 'lisp-mode-hook             #'enable-paredit-mode)
-(add-hook 'lisp-interaction-mode-hook #'enable-paredit-mode)
-(add-hook 'scheme-mode-hook           #'enable-paredit-mode)
+(when (eq system-type 'darwin)
+  (setq mac-option-modifier 'alt
+        mac-command-modifier 'meta)
+  (global-set-key [kp-delete] #'delete-char))
 
-(define-key paredit-mode-map "\C-t" 'transpose-sexps)
-(define-key paredit-mode-map "\M-t" 'reverse-transpose-sexps)
-(define-key paredit-mode-map "\C-k" 'kill-my-sexp)
-(define-key paredit-mode-map "\M-k" 'paredit-kill)
-(define-key paredit-mode-map "\M-f" 'sp-next-sexp)
-(define-key paredit-mode-map "\M-b" 'sp-backward-sexp)
-(define-key paredit-mode-map "\C-h" 'sp-down-sexp)
-(define-key paredit-mode-map "\C-u" 'sp-up-sexp)
-(define-key paredit-mode-map "\C-w" 'sp-copy-sexp)
-(define-key paredit-mode-map (kbd "C-S-w") 'kill-region)
-(define-key paredit-mode-map (kbd "C-,") 'sp-clone-sexp)
-(define-key paredit-mode-map "\M-d" 'paredit-forward-down)
-(define-key paredit-mode-map "\M-u" 'paredit-forward-up)
-(define-key paredit-mode-map "\M-c" 'paredit-convolute-sexp)
-(define-key paredit-mode-map "\C-o" 'avy-goto-sexp-begin)
-(define-key paredit-mode-map (kbd "C-S-o") 'avy-goto-sexp-end)
+(setq inhibit-startup-screen t
+      initial-scratch-message nil
+      ring-bell-function #'ignore
+      use-short-answers t              ; yes/no を y/n で答える
+      create-lockfiles nil
+      make-backup-files nil
+      auto-save-default nil
+      require-final-newline t
+      sentence-end-double-space nil
+      vc-follow-symlinks t             ; シンボリックリンク先をそのまま開く
+      auto-revert-check-vc-info t
+      global-auto-revert-non-file-buffers t
+      history-length 1000
+      native-comp-async-report-warnings-errors 'silent
+      custom-file (expand-file-name "custom.el" user-emacs-directory))
+(load custom-file :noerror :nomessage)
 
-(defun reverse-transpose-sexps (arg)
+(setq-default indent-tabs-mode nil
+              tab-width 4
+              fill-column 100)
+
+;; winner-mode は既定で C-c ←/→ を奪うが、そこは windmove に使うので取らせない
+(setq winner-dont-bind-my-keys t)
+
+(dolist (mode '(column-number-mode
+                delete-selection-mode
+                electric-pair-mode
+                global-auto-revert-mode
+                recentf-mode
+                repeat-mode
+                save-place-mode
+                savehist-mode
+                show-paren-mode
+                winner-mode))
+  (funcall mode 1))
+
+;; GUI でだけ意味のあるもの
+(dolist (mode '(tool-bar-mode scroll-bar-mode))
+  (when (fboundp mode) (funcall mode -1)))
+(when (fboundp 'pixel-scroll-precision-mode) (pixel-scroll-precision-mode 1))
+(when (fboundp 'context-menu-mode) (context-menu-mode 1))
+
+;;;; ------------------------------------------------------------ 見た目
+;; modus-themes は Emacs 28 から標準添付（コントラストが高く端末でも読める）
+(setq modus-themes-italic-constructs t
+      modus-themes-bold-constructs t)
+(load-theme 'modus-vivendi :no-confirm)
+
+;; 行番号は linum ではなく display-line-numbers（Emacs 26 以降の標準）
+(setq display-line-numbers-width 3)
+(dolist (hook '(prog-mode-hook text-mode-hook conf-mode-hook))
+  (add-hook hook #'display-line-numbers-mode))
+(add-hook 'prog-mode-hook #'hl-line-mode)
+
+;; 全角スペースと行末の空白だけを可視化する
+(setq whitespace-style '(face trailing spaces tabs space-mark tab-mark)
+      whitespace-space-regexp "\\(\u3000+\\)"          ; 全角スペースのみ対象
+      whitespace-trailing-regexp "\\([ \u00A0]+\\)$"
+      whitespace-display-mappings '((space-mark ?\u3000 [?\u25a1])   ; 全角スペース → □
+                                    (tab-mark ?\t [?\u00BB ?\t])))
+(dolist (hook '(prog-mode-hook text-mode-hook conf-mode-hook))
+  (add-hook hook #'whitespace-mode))
+
+;;;; ------------------------------------------------------------ 補完
+(if (>= emacs-major-version 29)
+    (progn
+      ;; ミニバッファを縦に並べる
+      (use-package vertico
+        :init (vertico-mode))
+
+      ;; 空白区切りの部分一致で絞り込む
+      (use-package orderless
+        :init
+        (setq completion-styles '(orderless basic)
+              completion-category-overrides '((file (styles basic partial-completion)))))
+
+      ;; 候補の横に説明を出す
+      (use-package marginalia
+        :init (marginalia-mode))
+
+      ;; helm-swoop / ace-isearch の後継
+      (use-package consult
+        :bind (("C-s"   . consult-line)
+               ("C-x b" . consult-buffer)
+               ("M-y"   . consult-yank-pop)
+               ("M-g g" . consult-goto-line)
+               ("M-g i" . consult-imenu)
+               ("C-c s" . consult-grep)))
+
+      ;; auto-complete の後継（バッファ内補完）
+      (use-package corfu
+        :init (global-corfu-mode)
+        :custom
+        (corfu-auto t)
+        (corfu-auto-delay 0.2)
+        (corfu-auto-prefix 2)
+        (corfu-cycle t))
+
+      ;; corfu は子フレームで描画するので、それが使えない端末 Emacs 30 以下では
+      ;; popon で代替する（31 以降は端末でも子フレームが使えるので不要）
+      (when (and (not (display-graphic-p)) (< emacs-major-version 31))
+        (use-package corfu-terminal
+          :init (corfu-terminal-mode 1)))
+
+      (use-package cape
+        :init (add-hook 'completion-at-point-functions #'cape-file)))
+
+  ;; Emacs 28: 組み込みの機能で代替する
+  (fido-vertical-mode 1)
+  (use-package company
+    :init (global-company-mode)
+    :custom
+    (company-idle-delay 0.2)
+    (company-minimum-prefix-length 2)))
+
+;;;; ------------------------------------------------------------ 編集支援
+(use-package which-key
+  :init (which-key-mode))
+
+(use-package avy
+  :custom (avy-background nil)
+  :bind (("M-g c" . avy-goto-char-timer)
+         ("M-g l" . avy-goto-line)))
+
+;; 自分が触った行だけ行末空白を削除する（無関係な差分を作らない）
+(use-package ws-butler
+  :hook (prog-mode . ws-butler-mode))
+
+(use-package rainbow-delimiters
+  :hook (prog-mode . rainbow-delimiters-mode))
+
+;;;; ------------------------------------------------------------ Git
+(use-package magit
+  :bind ("C-x g" . magit-status))
+
+(use-package diff-hl
+  :hook ((prog-mode . diff-hl-mode)
+         (magit-post-refresh . diff-hl-magit-post-refresh))
+  :config
+  ;; 端末ではフリンジが無いので余白に出す
+  (unless (display-graphic-p) (diff-hl-margin-mode 1)))
+
+;;;; ------------------------------------------------------------ 構文チェック / LSP
+;; flycheck ではなく組み込みの flymake を使う（eglot とそのまま繋がる）
+(use-package flymake
+  :ensure nil
+  :hook (emacs-lisp-mode . flymake-mode)
+  :bind (:map flymake-mode-map
+              ("C-c ! n" . flymake-goto-next-error)
+              ("C-c ! p" . flymake-goto-prev-error)
+              ("C-c ! l" . flymake-show-buffer-diagnostics)))
+
+(my/ensure-package 'eglot)
+(use-package eglot
+  :ensure nil
+  :commands (eglot eglot-ensure)
+  :init
+  ;; 言語サーバが実際に入っている言語だけ自動で起動する
+  (dolist (spec '((go-mode         . "gopls")
+                  (python-mode     . "pylsp")
+                  (terraform-mode  . "terraform-ls")
+                  (yaml-mode       . "yaml-language-server")))
+    (when (executable-find (cdr spec))
+      (add-hook (intern (format "%s-hook" (car spec))) #'eglot-ensure))))
+
+;;;; ------------------------------------------------------------ Lisp
+(defun my/reverse-transpose-sexps (arg)
+  "直前の sexp と入れ替える。ARG は繰り返し回数。"
   (interactive "*p")
   (transpose-sexps (- arg))
-  (backward-sexp  arg)
+  (backward-sexp arg)
   (forward-sexp 1))
 
-(defun kill-my-sexp ()
+(defun my/kill-sexp-or-line ()
+  "空行なら行を、そうでなければ sexp を kill する。"
   (interactive "*")
-  (if (zerop (length (buffer-substring (point-at-bol) (point-at-eol))))
+  (if (= (line-beginning-position) (line-end-position))
       (kill-line)
-      (kill-sexp)))
+    (kill-sexp)))
 
-(setf avy-background nil)
-
-(defun avy-goto-sexp-begin ()
-  (interactive "*")
-  (let ((avy-all-windows nil))
-    (avy-with avy-goto-char
-      (avy--process
-       (avy--regex-candidates
-        (regexp-quote "("))
-       (avy--style-fn avy-style)))))
-
-(defun avy-goto-sexp-end ()
-  (interactive "*")
-  (let ((avy-all-windows nil))
-    (avy-with avy-goto-char
-      (avy--process
-       (avy--regex-candidates
-        (regexp-quote ")"))
-       (avy--style-fn avy-style)))
-    (forward-char)))
-
-(eldoc-add-command
- 'paredit-backward-delete
- 'paredit-close-round)
-
-(add-hook 'slime-repl-mode-hook (lambda () (paredit-mode +1)))
-
-;; flycheck
-(add-hook 'after-init-hook #'global-flycheck-mode)
-
-;; Stop SLIME's REPL from grabbing DEL,
-;; which is annoying when backspacing over a'('
-(defun override-slime-repl-bindings-with-paredit ()
-  (define-key slime-repl-mode-map
-    (read-kbd-macro paredit-backward-delete-key) nil))
-(add-hook 'slime-repl-mode-hook 'override-slime-repl-bindings-with-paredit)
-
-;; rainbow-delimiters
-(add-hook 'prog-mode-hook 'rainbow-delimiters-mode)
-;; rainbow-delimiters-stronger-colors-mode
-;;(defun rainbow-delimiters-using-stronger-colors ()
-;;  (interactive)
-;;  (cl-loop
-;;   for index from 1 to rainbow-delimiters-max-face-count
-;;   do
-;;   (let ((face (intern (format "rainbow-delimiters-depth-%d-face" index))))
-;;     (cl-callf color-saturate-name (face-foreground face) 30))))
-;;(add-hook 'emacs-startup-hook 'rainbow-delimiters-using-stronger-colors)
-
-;; whitespace
-(setq whitespace-style
-      '(
-        face
-        trailing
-        tabs
-        spaces
-        space-mark
-        tab-mark
-        ))
-(setq whitespace-display-mappings
-      '(
-        (space-mark ?\u3000 [?\u2423])
-        (tab-mark ?\t [?\u00BB ?\t] [?\\ ?\t])
-        ))
-(setq whitespace-trailing-regexp  "\\([ \u00A0]+\\)$")
-(setq whitespace-space-regexp "\\(\u3000+\\)")
-(set-face-attribute 'whitespace-trailing nil
-                    :foreground "RoyalBlue4"
-                    :background "RoyalBlue4"
-                    :underline nil)
-(set-face-attribute 'whitespace-tab nil
-                    :foreground "yellow4"
-                    :background "yellow4"
-                    :underline nil)
-(set-face-attribute 'whitespace-space nil
-                    :foreground "gray40"
-                    :background "gray20"
-                    :underline nil)
-(global-whitespace-mode t)
-
-;; yaml-mode
-(add-hook 'yaml-mode-hook
-          (lambda ()
-            (define-key yaml-mode-map "\C-m" 'newline-and-indent)))
-(add-hook 'yaml-mode-hook 'highlight-indentation-mode)
-(add-hook 'yaml-mode-hook 'highlight-indentation-current-column-mode)
-(add-hook 'yaml-mode-hook '(lambda() (setq highlight-indentation-offset 2)))
-
-;; highlight-indentation
-(setq highlight-indentation-offset 2)
-
-;; You must install plantuml and set plantuml-jar-path as custom-set-variables
-;; Enable plantuml-mode for PlantUML files
-(add-to-list 'auto-mode-alist '("\\.plantuml\\'" . plantuml-mode))
-(add-to-list 'auto-mode-alist '("\\.uml\\'" . plantuml-mode))
-(add-to-list 'auto-mode-alist '("\\.pu\\'" . plantuml-mode))
-
-(setq plantuml-options "-charset UTF-8")
-
-(add-hook 'plantuml-mode-hook
-          (lambda () (local-set-key (kbd "C-c C-s") 'plantuml-save-png)))
-
-;;(add-hook 'plantuml-mode-hook
-;;          (lambda () (add-hook 'after-save-hook 'plantuml-save-png)))
-
-(defun plantuml-save-png ()
+(defun my/copy-sexp ()
+  "ポイント位置の sexp を kill-ring にコピーする。"
   (interactive)
-  (when (buffer-modified-p)
-    (map-y-or-n-p "Save this buffer before executing PlantUML?"
-                  'save-buffer (list (current-buffer))))
-  (let ((code (buffer-string))
-        out-file
-        cmd)
-    (when (string-match "^\\s-*@startuml\\s-+\\(\\S-+\\)\\s*$" code)
-      (setq out-file (match-string 1 code)))
-    (setq cmd (concat
-               "java -Djava.awt.headless=true -jar " plantuml-java-options " "
-               (shell-quote-argument plantuml-jar-path) " "
-               (and out-file (concat "-t" (file-name-extension out-file))) " "
-               plantuml-options " "
-               (buffer-file-name)))
-    (message cmd)
-    (call-process-shell-command cmd nil 0)))
+  (save-excursion
+    (let ((beg (point)))
+      (forward-sexp)
+      (copy-region-as-kill beg (point)))))
 
-;; neotree
-(global-set-key [f8] 'neotree-toggle)
-(setq neo-theme (if (display-graphic-p) 'icons 'arrow))
-(setq neo-smart-open t)
+(defun my/clone-sexp ()
+  "ポイント位置の sexp を複製して次の行に挿入する。"
+  (interactive "*")
+  (let* ((beg (point))
+         (end (save-excursion (forward-sexp) (point)))
+         (text (buffer-substring-no-properties beg end)))
+    (save-excursion
+      (goto-char end)
+      (newline-and-indent)
+      (insert text))))
 
-;; auto-complete-config
-(ac-config-default)
-(add-to-list 'ac-modes 'text-mode)
-(add-to-list 'ac-modes 'fundamental-mode)
-(add-to-list 'ac-modes 'org-mode)
-(add-to-list 'ac-modes 'yatex-mode)
-(ac-set-trigger-key "TAB")
-(setq ac-use-menu-map t)
-(setq ac-use-fuzzy t)
+(defun my/avy-goto-sexp-begin ()
+  "画面内の開き括弧へ avy でジャンプする。"
+  (interactive)
+  (let ((avy-all-windows nil))
+    (avy-jump (regexp-quote "("))))
 
-;; ace-isearch
-(global-ace-isearch-mode +1)
+(defun my/avy-goto-sexp-end ()
+  "画面内の閉じ括弧へ avy でジャンプする。"
+  (interactive)
+  (let ((avy-all-windows nil))
+    (when (avy-jump (regexp-quote ")"))
+      (forward-char))))
 
-;; slime
-;;(setq inferior-lisp-program "clisp")
-;;(setq slime-contrib '(slime-fancy))
-;;(slime-setup '(slime-repl slime-fancy slime-banner slime-indentation))
-(load (expand-file-name "~/.roswell/helper.el"))
+(use-package paredit
+  :hook ((emacs-lisp-mode
+          lisp-mode
+          lisp-interaction-mode
+          scheme-mode
+          ielm-mode) . enable-paredit-mode)
+  :init
+  (add-hook 'eval-expression-minibuffer-setup-hook #'enable-paredit-mode)
+  :bind (:map paredit-mode-map
+              ("C-t"   . transpose-sexps)
+              ("M-t"   . my/reverse-transpose-sexps)
+              ("C-k"   . my/kill-sexp-or-line)
+              ("M-k"   . paredit-kill)
+              ("M-f"   . paredit-forward)
+              ("M-b"   . paredit-backward)
+              ("M-d"   . paredit-forward-down)
+              ("M-u"   . paredit-forward-up)
+              ("M-c"   . paredit-convolute-sexp)
+              ("C-w"   . my/copy-sexp)
+              ("C-S-w" . kill-region)
+              ("C-,"   . my/clone-sexp)
+              ("C-o"   . my/avy-goto-sexp-begin)
+              ("C-S-o" . my/avy-goto-sexp-end))
+  :config
+  (eldoc-add-command 'paredit-backward-delete 'paredit-close-round))
 
-;; hyperspec
-;; You must install hyperspec and set path
-(global-set-key [(f2)] 'slime-hyperspec-lookup)
-(eval-after-load "slime"
-  '(progn
-     (setq common-lisp-hyperspec-root
-           "/usr/local/share/doc/hyperspec/HyperSpec/")
-     (setq common-lisp-hyperspec-symbol-table
-           (concat common-lisp-hyperspec-root "Data/Map_Sym.txt"))
-     (setq common-lisp-hyperspec-issuex-table
-           (concat common-lisp-hyperspec-root "Data/Map_IssX.txt"))))
+(use-package slime
+  :commands (slime slime-connect)
+  :init
+  ;; 処理系は Roswell 経由で起動する。
+  ;; ~/.roswell/helper.el は読み込まない — あれが読ませようとする roswell 同梱の
+  ;; SLIME は 2018 年版で、新しい Emacs では動かない。ELPA の最新版を使う。
+  (setq inferior-lisp-program
+        (if (executable-find "ros") "ros -Q run" "sbcl"))
+  :bind (("<f2>" . slime-hyperspec-lookup))
+  :config
+  (setq slime-contribs '(slime-fancy))
+  (add-hook 'slime-repl-mode-hook #'enable-paredit-mode)
+  ;; SLIME の REPL が DEL を奪って paredit と衝突するのを防ぐ
+  (with-eval-after-load 'slime-repl
+    (define-key slime-repl-mode-map
+                (read-kbd-macro paredit-backward-delete-key) nil))
+  ;; HyperSpec をローカルに置いている場合だけ参照先を差し替える
+  (let ((root "/usr/local/share/doc/hyperspec/HyperSpec/"))
+    (when (file-directory-p root)
+      (setq common-lisp-hyperspec-root root
+            common-lisp-hyperspec-symbol-table (concat root "Data/Map_Sym.txt")
+            common-lisp-hyperspec-issuex-table (concat root "Data/Map_IssX.txt")))))
 
-(global-set-key (kbd "C-c <left>")  'windmove-left)
-(global-set-key (kbd "C-c <right>") 'windmove-right)
-(global-set-key (kbd "C-c <up>")    'windmove-up)
-(global-set-key (kbd "C-c <down>")  'windmove-down)
+;;;; ------------------------------------------------------------ 各種言語
+(use-package markdown-mode
+  :mode ("\\.md\\'" "\\.markdown\\'"))
 
-(custom-set-variables
- ;; custom-set-variables was added by Custom.
- ;; If you edit it by hand, you could mess it up, so be careful.
- ;; Your init file should contain only one such instance.
- ;; If there is more than one, they won't work right.
- '(custom-enabled-themes (quote (sanityinc-tomorrow-night)))
- '(custom-safe-themes
-   (quote
-    ("06f0b439b62164c6f8f84fdda32b62fb50b6d00e8b01c2208e55543a6337433a" default)))
- '(package-selected-packages
-   (quote
-    (flycheck ac-slime base16-theme nimbus-theme fuzzy avy-flycheck ace-isearch avy helm-swoop auto-complete auto-compile)))
- '(plantuml-jar-path "/usr/local/Cellar/plantuml/1.2018.8/libexec/plantuml.jar"))
-(custom-set-faces
- ;; custom-set-faces was added by Custom.
- ;; If you edit it by hand, you could mess it up, so be careful.
- ;; Your init file should contain only one such instance.
- ;; If there is more than one, they won't work right.
- )
+(use-package yaml-mode
+  :mode "\\.ya?ml\\'"
+  :hook (yaml-mode . (lambda () (setq-local tab-width 2))))
 
-(fset 'beautify-json
-   (lambda (&optional arg) "Keyboard macro." (interactive "p") (kmacro-exec-ring-item (quote (" >|jq '.'" 0 "%d")) arg)))
-(global-set-key (kbd "C-c C-b j") 'beautify-json)
+(use-package terraform-mode
+  :mode "\\.tf\\(vars\\)?\\'")
+
+(use-package go-mode
+  :mode "\\.go\\'"
+  :hook (go-mode . (lambda () (setq-local indent-tabs-mode t tab-width 4))))
+
+(use-package csv-mode
+  :mode "\\.csv\\'")
+
+(use-package plantuml-mode
+  :mode ("\\.\\(plantuml\\|puml\\|pu\\|uml\\)\\'" . plantuml-mode)
+  :init
+  ;; plantuml コマンドがあれば jar を探さずそちらを使う。C-c C-c でプレビュー。
+  (setq plantuml-default-exec-mode (if (executable-find "plantuml") 'executable 'jar)
+        plantuml-options "-charset UTF-8"))
+
+;;;; ------------------------------------------------------------ キーバインド
+;; 1行ずつスクロール（組み込みコマンドで十分）
+(global-set-key (kbd "M-n") #'scroll-up-line)
+(global-set-key (kbd "M-p") #'scroll-down-line)
+
+;; ウィンドウ構成を戻す / やり直す（winner の既定キーは windmove に譲った）
+(global-set-key (kbd "C-c u") #'winner-undo)
+(global-set-key (kbd "C-c U") #'winner-redo)
+
+;; C-c + 矢印でウィンドウ移動
+(global-set-key (kbd "C-c <left>")  #'windmove-left)
+(global-set-key (kbd "C-c <right>") #'windmove-right)
+(global-set-key (kbd "C-c <up>")    #'windmove-up)
+(global-set-key (kbd "C-c <down>")  #'windmove-down)
+
+;; ファイルツリーの代わりに dired を開く
+(global-set-key [f8] #'dired-jump)
+
+(defun my/json-pretty-print-dwim ()
+  "リージョン、無ければバッファ全体の JSON を整形する。"
+  (interactive "*")
+  (require 'json)
+  (if (use-region-p)
+      (json-pretty-print (region-beginning) (region-end))
+    (json-pretty-print-buffer)))
+(global-set-key (kbd "C-c C-b j") #'my/json-pretty-print-dwim)
+
+;;;; ------------------------------------------------------------ マシン固有設定
+(load (expand-file-name "local.el" user-emacs-directory) :noerror :nomessage)
+
+(provide 'init)
+;;; init.el ends here

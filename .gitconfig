@@ -1,29 +1,130 @@
-[filter "lfs"]
-    clean = git-lfs clean -- %f
-    smudge = git-lfs smudge -- %f
-    process = git-lfs filter-process
-    required = true
-[alias]
-    lg = log --graph --pretty=format:'%Cred%h%Creset -%C(yellow)%d%Creset %s %Cgreen(%cr) %C(bold blue)<%an>%Creset' --abbrev-commit --date=relative
-    lga = log --graph --all --pretty=format:'%Cred%h%Creset -%C(yellow)%d%Creset %s %Cgreen(%cr) %C(bold blue)<%an>%Creset' --abbrev-commit --date=relative
-    d = diff
-    au = add -u
-    ac = add .
-    st = status
-    stt = status -uno
-    co = checkout
-    f = fetch
-    m = merge
-    md = merge origin/develop
-    pl = pull
-    cm = commit -m
-    p = push
-    poh = push origin HEAD
-    unstage = reset HEAD
-    cp = cherry-pick
-    b = branch
-    ba = branch -a
+; ~/.gitconfig — managed in ~/git/runcom
+; 個人情報（user.name / user.email）はマシンごとの ~/.gitconfig.local に置く
+
+[include]
+	path = ~/.gitconfig.local
+
+[user]
+	; identity が未設定なら commit を拒否する（別人名義の誤コミット防止）
+	useConfigOnly = true
+
+[init]
+	defaultBranch = main
+
 [core]
-    quotepath = false
-    editor = emacs -nw
-    excludesfile = ~/.gitignore_global
+	quotepath = false
+	editor = emacs -nw
+	excludesfile = ~/.gitignore_global
+	fsmonitor = true
+	untrackedCache = true
+
+[credential]
+	helper = osxkeychain
+
+[column]
+	ui = auto
+[branch]
+	sort = -committerdate
+[tag]
+	sort = -version:refname
+
+[diff]
+	algorithm = histogram
+	colorMoved = zebra
+	mnemonicPrefix = true
+	renames = copies
+	submodule = log
+	wsErrorHighlight = all
+[merge]
+	conflictstyle = zdiff3
+[rebase]
+	autoSquash = true
+	autoStash = true
+	updateRefs = true
+[rerere]
+	enabled = true
+	autoUpdate = true
+
+[fetch]
+	prune = true
+	pruneTags = true
+	parallel = 0
+[pull]
+	rebase = true
+[push]
+	default = simple
+	autoSetupRemote = true
+	followTags = true
+
+[commit]
+	verbose = true
+[status]
+	submoduleSummary = true
+[grep]
+	lineNumber = true
+	patternType = perl
+[help]
+	autocorrect = prompt
+
+[alias]
+	; --- status / diff
+	st = status
+	stt = status -uno
+	s = status --short --branch
+	d = diff
+	dc = diff --cached
+	ds = diff --stat
+	precommit = diff --cached --diff-algorithm=minimal -w
+	unmerged = diff --name-only --diff-filter=U
+
+	; --- stage / commit
+	au = add -u
+	ac = add .
+	ap = add --patch
+	cm = commit -m
+	ca = commit --amend
+	can = commit --amend --no-edit
+	fixup = commit --fixup
+	unstage = reset -q HEAD --
+	discard = restore --
+	uncommit = reset --mixed HEAD~
+	nevermind = !git reset --hard HEAD && git clean -d -f
+
+	; --- branch / switch
+	b = branch
+	ba = branch -a
+	branches = branch -a
+	co = checkout
+	sw = switch
+	swc = switch -c
+	rs = restore
+
+	; --- sync
+	f = fetch
+	fa = fetch --all --prune
+	pl = pull
+	p = push
+	poh = push origin HEAD
+	pf = push --force-with-lease
+	m = merge
+	md = merge origin/develop
+	ri = rebase -i --autosquash
+	cp = cherry-pick
+
+	; --- log
+	lg = log --graph --pretty=format:'%Cred%h%Creset -%C(yellow)%d%Creset %s %Cgreen(%cr) %C(bold blue)<%an>%Creset' --abbrev-commit --date=relative
+	lga = log --graph --all --pretty=format:'%Cred%h%Creset -%C(yellow)%d%Creset %s %Cgreen(%cr) %C(bold blue)<%an>%Creset' --abbrev-commit --date=relative
+	graph = log --oneline --decorate --graph -20 --branches --remotes --tags --date-order
+	last = show --stat HEAD
+	who = shortlog -sne
+
+	; --- misc
+	remotes = remote -v
+	stashes = stash list
+	tags = tag --sort=-version:refname
+
+[filter "lfs"]
+	clean = git-lfs clean -- %f
+	smudge = git-lfs smudge -- %f
+	process = git-lfs filter-process
+	required = true

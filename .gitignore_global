@@ -1,0 +1,31 @@
+# ~/.gitignore_global — managed in ~/git/runcom
+# OS / エディタが撒き散らすファイルだけを書く（プロジェクト固有のものは各リポジトリの .gitignore へ）
+
+# --- macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+.Spotlight-V100
+.Trashes
+
+# --- Emacs
+*~
+\#*\#
+.\#*
+*.elc
+auto-save-list/
+
+# --- Vim
+*.swp
+*.swo
+.netrwhist
+
+# --- JetBrains / VSCode（プロジェクトで共有する場合は各 .gitignore で打ち消す）
+.idea/
+.vscode/
+
+# --- ツール
+.direnv/
+.envrc.local
+*.log

@@ -1,0 +1,68 @@
+{
+  "version": "1.0.0",
+  "lastScanned": 1789131331580,
+  "projectRoot": "/Users/tanii_s/git/runcom",
+  "techStack": {
+    "languages": [],
+    "frameworks": [],
+    "packageManager": null,
+    "runtime": null
+  },
+  "build": {
+    "buildCommand": null,
+    "testCommand": null,
+    "lintCommand": null,
+    "devCommand": null,
+    "scripts": {}
+  },
+  "conventions": {
+    "namingStyle": null,
+    "importStyle": null,
+    "testPattern": null,
+    "fileOrganization": null
+  },
+  "structure": {
+    "isMonorepo": false,
+    "workspaces": [],
+    "mainDirectories": [],
+    "gitBranches": {
+      "defaultBranch": "master",
+      "branchingStrategy": null
+    }
+  },
+  "customNotes": [],
+  "directoryMap": {},
+  "hotPaths": [
+    {
+      "path": "init.el",
+      "accessCount": 8,
+      "lastAccessed": 1789135348766,
+      "type": "file"
+    },
+    {
+      "path": ".vimrc",
+      "accessCount": 7,
+      "lastAccessed": 1789132772848,
+      "type": "file"
+    },
+    {
+      "path": ".zshrc",
+      "accessCount": 1,
+      "lastAccessed": 1789132849469,
+      "type": "file"
+    },
+    {
+      "path": "install.sh",
+      "accessCount": 1,
+      "lastAccessed": 1789133029725,
+      "type": "file"
+    },
+    {
+      "path": "README.md",
+      "accessCount": 1,
+      "lastAccessed": 1789133046250,
+      "type": "file"
+    }
+  ],
+  "userDirectives": []
+}
